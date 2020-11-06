@@ -3,13 +3,8 @@ from lxml import etree
 import requests
 import shutil
 
-from io import StringIO
-from pdfminer.converter import TextConverter
-from pdfminer.layout import LAParams
-from pdfminer.pdfdocument import PDFDocument
-from pdfminer.pdfinterp import PDFResourceManager, PDFPageInterpreter
-from pdfminer.pdfpage import PDFPage
-from pdfminer.pdfparser import PDFParser
+import io
+import pdfminer.high_level
 
 _url = "https://covid19.min-saude.pt/relatorio-de-situacao/"
 _valid = 168
@@ -37,43 +32,28 @@ def valid_urls(last_title, arr_urls):
 
 def get_data(url):
 	headers = {
-		'user-agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:81.0) Gecko/20100101 Firefox/81.0'
+		"user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:81.0) Gecko/20100101 Firefox/81.0"
 	}
 
 	r = requests.get(url, stream=True, headers=headers)
-
 	if r.status_code == 200:
-		image = r.raw
-
-		with open('./teste.pdf', 'wb') as _file:
-			shutil.copyfileobj(image, _file)
-			fich = "teste.pdf"
+		lst_text = pdfminer.high_level.extract_text(
+			io.BytesIO(r.content), codec="utf-8").split("\n")
+		lst_text = list(filter(str.strip, lst_text))
+		return lst_text
 	else:
-		print('erro ao fazer request')
+		print("erro ao fazer request")
+		return
 
-	print(url.split("/")[-1] + " - " + read_casos(fich))
-
-
-def read_casos(path):
-	output_string = StringIO()
-	with open(path, 'rb') as in_file:
-		parser = PDFParser(in_file)
-		doc = PDFDocument(parser)
-		rsrcmgr = PDFResourceManager()
-		device = TextConverter(rsrcmgr, output_string, laparams=LAParams())
-		interpreter = PDFPageInterpreter(rsrcmgr, device)
-		for page in PDFPage.create_pages(doc):
-			interpreter.process_page(page)
-
-	arr = output_string.getvalue().split("\n")
-	arr = list(filter(str.strip, arr))
-	return arr[arr.index("CONFIRMADOS")-1].split("+")[-1].strip()
 
 def main():
 	di = get_urls()
-	arr_valid = valid_urls(di.get("titles")[0], di.get("urls"))
-	for i in arr_valid:
-		get_data(i)
+	#arr_valid = valid_urls(di.get("titles")[0], di.get("urls"))
+	# for i in arr_valid:
+	# 	get_data(i)
+	latest = get_data(di.get("urls")[0])
+	latest = latest[latest.index("CONFIRMADOS")-1].split("+")[-1].strip()
+	print("Casos hoje: %s" % (latest))
 
 
 if __name__ == "__main__":
